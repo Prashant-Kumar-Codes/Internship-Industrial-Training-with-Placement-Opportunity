@@ -1,0 +1,58 @@
+{%extends 'base.html'%}
+  {%block title%}Sign Up{%endblock%}
+
+  {%block style%}
+  <link rel="stylesheet" href="{{url_for('static',filename='css/login.css')}}" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  {%endblock%}
+
+
+{%block content%}
+
+  <div class="container">
+    <!-- Left side illustration -->
+    <div class="illustration">
+      <img src="{{ url_for('static',filename='images/login_image1.jpg')}}"/>
+    </div>
+
+    <!-- Right side form -->
+    <div class="form-box">
+      <h2>Sign up</h2>
+
+      <form method="POST" action="/login">
+        <div class="input-box">
+          <i class="fa fa-user"></i>
+          <input type="text" placeholder="Username" required />
+        </div>
+
+        <div class="input-box">
+          <i class="fa fa-lock"></i>
+          <input type="password" placeholder="Password" required />
+        </div>
+
+        <div class="remember">
+          <label><input type="checkbox" /> Remember me</label>
+        </div>
+
+        <button type="submit" class="btn">Log in</button>
+
+        <p class="create">
+          <a href="#">Create an account</a>
+        </p>
+
+        <div class="social-login">
+          <p>Or login with</p>
+          <div class="social-icons">
+            <a href="#" class="fb"><i class="fab fa-facebook-f"></i></a>
+            <a href="#" class="tw"><i class="fab fa-twitter"></i></a>
+            <a href="#" class="gl"><i class="fab fa-google"></i></a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+{%endblock%}
