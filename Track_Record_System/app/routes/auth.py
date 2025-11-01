@@ -2,110 +2,27 @@ from flask import Blueprint, render_template, request, session, flash, redirect,
 import mysql.connector
 from flask_mail import Message
 from app import mail
-from datetime import datetime
 from datetime import datetime, timedelta
 import random
 
 auth = Blueprint('auth', __name__)
 
-# Database mycon_objection
-# mycon_obj = mycon.mycon_object(host='localhost', user='root', password='admin123', database='message_system')
-mycon_obj = mysql.connector.connect(host='localhost', user='root', password='admin123', database='Student_Management_System_Database')
-# mycon_obj = mycon.mycon_object(host='sql12.freesqldatabase.com', user='sql12805427', password='xtFCQmMibE', database='sql12805427')
+# Database connection
+mycon_obj = mysql.connector.connect(
+    host='localhost',
+    user='root',
+    password='admin123',
+    database='college_placement_database'
+)
 
 cursor_auth = mycon_obj.cursor(dictionary=True)
 
-# signup route
-@auth.route('/signup', methods=['GET', 'POST'])
-def signup():
-    if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        role = request.form['role']
+# Constants
+OTP_EXPIRY = 60
+RESEND_INTERVAL = 60
+STALE_ACCOUNT_SECONDS = 24 * 3600
 
-        #checking if the user exists in the database or not
-        cursor_auth.execute('select email from login_data where email=%s',(email,))
-        x = cursor_auth.fetchone()
-        try:
-            cursor_auth.execute('select is_verified from login_data where email=%s',(email,))
-            y = cursor_auth.fetchone()
-        except:
-            pass
-
-        if x:
-            if y['is_verified'] == 0:
-                cursor_auth.execute("delete from login_data where email=%s",(x['email'],))
-                flash('There was some problem in backend. Please try again.')
-            else:
-                flash("Email already registered. Please login.", "warning")
-                return redirect(url_for('auth.login'))
-        else:
-            otp = str(random.randint(100000, 999999))
-            # Send OTP
-            msg = Message('Your OTP Verification Code', sender='pkthisisfor1234@gmail.com', recipients=[email])
-            msg.body = f'Your OTP is {otp}'
-            mail.send(msg)
-            now = datetime.utcnow()   # or datetime.now() if you want local time
-            # Insert into MySQL
-            cursor_auth.execute("INSERT INTO login_data (username, email, password, role, otp, otp_created_at, is_verified) VALUES (%s,%s, %s, %s, %s, %s, %s)",(username,email, password, role, otp, now, 0))
-            mycon_obj.commit()
-
-            session['user_email'] = email
-            return redirect(url_for('auth.verify'))
-
-    return render_template('auth/signup.html')
-
-
-
-# LOGIN ROUTE
-@auth.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        role = request.form['role']
-
-        # check if user exists
-        cursor_auth.execute("SELECT * FROM login_data WHERE email=%s AND password=%s AND role=%s", (email, password, role))
-        user = cursor_auth.fetchone()
-        
-        print(user)
-        if user:
-            if user['is_verified'] == 1:
-                session['user_email'] = user['email']  # store login session
-                flash("Login successful!", "success")
-                
-                # Correct redirection logic
-                if user['role'] == 'alumni' or user['role'] == 'student':
-                    return redirect(url_for('auth.alumni_student_dashboard'))
-                elif user['role'] == 'administrator':
-                    return redirect(url_for('auth.administrator_dashboard'))
-                else:
-                    flash('Something wrong. Try Again.', 'warning')
-                    return redirect(url_for('auth.signup'))
-            else:
-                cursor_auth.execute("delete from login_data where email=%s", (user['email'],))
-                flash("Please signin and verify your account.", "warning")
-                return redirect(url_for('auth.signup'))
-        else:
-            flash("Invalid email, role or password.", "danger")
-            # Return the template so the user can try again
-            return render_template('auth/login.html')
-
-    # This handles the initial GET request to display the login form
-    return render_template('auth/login.html')
-
-
-
-
-# constants
-OTP_EXPIRY = 60            # seconds
-RESEND_INTERVAL = 60        # seconds between resends
-STALE_ACCOUNT_SECONDS = 24*3600  # delete unverified accounts older than 24 hours
-
-
-#---------------Deleting the unverified accounts----------------
+# Cleanup function
 def cleanup_stale_unverified():
     cutoff = datetime.now() - timedelta(seconds=STALE_ACCOUNT_SECONDS)
     try:
@@ -115,7 +32,6 @@ def cleanup_stale_unverified():
         )
         mycon_obj.commit()
     except Exception:
-        # don't crash on cleanup errors; optional: log it
         pass
 
 def parse_db_datetime(val):
@@ -124,7 +40,6 @@ def parse_db_datetime(val):
         return None
     if isinstance(val, datetime):
         return val
-    # if string like "2025-09-10 20:40:55" or with microseconds
     try:
         return datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
     except Exception:
@@ -133,24 +48,140 @@ def parse_db_datetime(val):
         except Exception:
             return None
 
+# Main route - render SPA
+@auth.route('/auth', methods=['GET'])
+def auth_page():
+    """Render the single-page auth application"""
+    return render_template('auth/login.html')
 
+# Signup route (API endpoint)
+@auth.route('/signup', methods=['POST'])
+def signup():
+    try:
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '').strip()
+        role = request.form.get('role', '').strip()
 
-# VERIFY route
+        # Validate inputs
+        if not all([username, email, password, role]):
+            flash("All fields are required.", "danger")
+            return redirect(url_for('auth.auth_page'))
+
+        if role not in ['student', 'mentor', 'placement', 'industry']:
+            flash("Invalid role selected.", "danger")
+            return redirect(url_for('auth.auth_page'))
+
+        # Check if email already exists
+        cursor_auth.execute('SELECT email, is_verified FROM login_data WHERE email=%s', (email,))
+        existing_user = cursor_auth.fetchone()
+
+        if existing_user:
+            if existing_user['is_verified'] == 0:
+                # Delete unverified account and allow re-signup
+                cursor_auth.execute("DELETE FROM login_data WHERE email=%s", (email,))
+                mycon_obj.commit()
+                flash('Previous attempt was incomplete. Please try again.', "info")
+            else:
+                flash("Email already registered. Please login.", "warning")
+                return redirect(url_for('auth.auth_page'))
+
+        # Generate OTP
+        otp = str(random.randint(100000, 999999))
+        now = datetime.utcnow()
+
+        try:
+            # Send OTP
+            msg = Message(
+                'Your OTP Verification Code',
+                sender='pkthisisfor1234@gmail.com',
+                recipients=[email]
+            )
+            msg.body = f'Your OTP is {otp}\n\nThis OTP will expire in 60 seconds.'
+            mail.send(msg)
+
+            # Insert into database
+            cursor_auth.execute(
+                "INSERT INTO login_data (username, email, password, role, otp, otp_created_at, is_verified) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (username, email, password, role, otp, now, 0)
+            )
+            mycon_obj.commit()
+
+            session['user_email'] = email
+            flash("OTP sent to your email. Please verify.", "success")
+            return redirect(url_for('auth.verify'))
+
+        except Exception as e:
+            flash(f"Error sending OTP: {str(e)}", "danger")
+            return redirect(url_for('auth.auth_page'))
+
+    except Exception as e:
+        flash(f"Signup error: {str(e)}", "danger")
+        return redirect(url_for('auth.auth_page'))
+
+# Login route (API endpoint)
+@auth.route('/login', methods=['POST'])
+def login():
+    try:
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '').strip()
+
+        if not email or not password:
+            flash("Email and password are required.", "danger")
+            return redirect(url_for('auth.auth_page'))
+
+        # Check if user exists and password matches
+        cursor_auth.execute(
+            "SELECT * FROM login_data WHERE email=%s AND password=%s",
+            (email, password)
+        )
+        user = cursor_auth.fetchone()
+
+        print(user)
+
+        if user:
+            if user['is_verified'] == 1:
+                session['user_email'] = user['email']
+                session['user_role'] = user['role']
+                flash("Login successful!", "success")
+
+                # Redirect based on role
+                if user['role'] == 'student':
+                    return redirect(url_for('auth.student_dashboard'))
+                elif user['role'] == 'mentor':
+                    return redirect(url_for('auth.mentor_dashboard'))
+                elif user['role'] == 'placement':
+                    return redirect(url_for('auth.placement_dashboard'))
+                elif user['role'] == 'industry':
+                    return redirect(url_for('auth.industry_dashboard'))
+                else:
+                    flash('Invalid role. Contact support.', 'warning')
+                    return redirect(url_for('auth.auth_page'))
+            else:
+                flash("Please verify your account first.", "warning")
+                session['user_email'] = email
+                return redirect(url_for('auth.verify'))
+        else:
+            flash("Invalid email or password.", "danger")
+            return redirect(url_for('auth.auth_page'))
+
+    except Exception as e:
+        flash(f"Login error: {str(e)}", "danger")
+        return redirect(url_for('auth.auth_page'))
+
+# Verify route
 @auth.route('/verify', methods=['GET', 'POST'])
 def verify():
     email = session.get('user_email')
     if not email:
         flash("Session expired. Please sign up again.", "danger")
-        ## Adding delete data:
         cleanup_stale_unverified()
-        return redirect(url_for('auth.signup'))
+        return redirect(url_for('auth.auth_page'))
 
     if request.method == 'POST':
-        entered_otp = request.form.get('otp')
+        entered_otp = request.form.get('otp', '').strip()
         if not entered_otp:
             flash("Please enter the OTP.", "danger")
-            ## Adding delete data:
-            cleanup_stale_unverified()
             return redirect(url_for('auth.verify'))
 
         cursor_auth.execute("SELECT * FROM login_data WHERE email=%s", (email,))
@@ -161,7 +192,7 @@ def verify():
             return redirect(url_for('auth.resend_otp'))
 
         try:
-            # Consistent UTC time for comparison
+            # Parse OTP creation time
             otp_created_at = user['otp_created_at']
             if isinstance(otp_created_at, str):
                 otp_created_at = datetime.strptime(otp_created_at, "%Y-%m-%d %H:%M:%S")
@@ -170,26 +201,26 @@ def verify():
 
             if datetime.utcnow() > expiry_time:
                 flash("OTP expired. Please request a new one.", "warning")
-                return redirect(url_for('auth.verify'))
+                return redirect(url_for('auth.resend_otp'))
 
             if user['otp'] == entered_otp:
                 cursor_auth.execute(
-                    "UPDATE login_data SET is_verified = %s, otp = NULL, otp_created_at = NULL WHERE email = %s",
-                    (1, email)
+                    "UPDATE login_data SET is_verified = 1, otp = NULL, otp_created_at = NULL WHERE email = %s",
+                    (email,)
                 )
                 mycon_obj.commit()
                 flash("Account verified successfully! You can now log in.", "success")
-                return redirect(url_for('auth.login'))
+                session.pop('user_email', None)
+                return redirect(url_for('auth.auth_page'))
             else:
                 flash("Invalid OTP. Please try again.", "danger")
                 return redirect(url_for('auth.verify'))
 
         except Exception as e:
             flash("An error occurred. Please try again.", "danger")
-            # Log the error for debugging: print(f"Error in verify: {e}")
             return redirect(url_for('auth.verify'))
 
-    # GET request logic for the verify page
+    # GET request - show verify page
     remaining = 0
     try:
         cursor_auth.execute("SELECT otp_created_at FROM login_data WHERE email=%s", (email,))
@@ -203,59 +234,84 @@ def verify():
             remaining = max(0, int((expiry_time - datetime.utcnow()).total_seconds()))
     except Exception:
         remaining = 0
-        ## Adding delete data:
         cleanup_stale_unverified()
-        
+
     return render_template('auth/verify.html', remaining=remaining)
 
-
-# RESEND_OTP ROUTE
+# Resend OTP route
 @auth.route('/resend_otp', methods=['POST'])
 def resend_otp():
     email = session.get('user_email')
     if not email:
         flash("Session expired. Please sign up again.", "danger")
-        return redirect(url_for('auth.signup'))
+        return redirect(url_for('auth.auth_page'))
 
     cursor_auth.execute("SELECT otp_created_at FROM login_data WHERE email=%s", (email,))
     data = cursor_auth.fetchone()
-    
-    # Check if a new OTP can be sent
+
     if data and data['otp_created_at']:
         otp_created_at = data['otp_created_at']
         if isinstance(otp_created_at, str):
             otp_created_at = datetime.strptime(otp_created_at, "%Y-%m-%d %H:%M:%S")
-        
-        # Check if the cool-down period has passed
-        resend_time = otp_created_at + timedelta(seconds=60) # Use 60s for consistency
+
+        resend_time = otp_created_at + timedelta(seconds=60)
         if datetime.utcnow() < resend_time:
-            flash("Please wait until the current OTP expires before requesting a new one.", "warning")
+            flash("Please wait before requesting a new OTP.", "warning")
             return redirect(url_for('auth.verify'))
 
     # Generate and save new OTP
     otp = str(random.randint(100000, 999999))
     otp_created_at = datetime.utcnow()
     try:
-        cursor_auth.execute("UPDATE login_data SET otp=%s, otp_created_at=%s WHERE email=%s",
-                       (otp, otp_created_at, email))
+        cursor_auth.execute(
+            "UPDATE login_data SET otp=%s, otp_created_at=%s WHERE email=%s",
+            (otp, otp_created_at, email)
+        )
         mycon_obj.commit()
 
-        msg = Message('Your New OTP Code', sender='pkthisisfor1234@gmail.com', recipients=[email])
+        msg = Message(
+            'Your New OTP Code',
+            sender='pkthisisfor1234@gmail.com',
+            recipients=[email]
+        )
         msg.body = f'Your new OTP is {otp}'
         mail.send(msg)
 
         flash("New OTP sent successfully!", "success")
     except Exception as e:
         flash("Failed to send new OTP. Please try again.", "danger")
-        # Log the error for debugging: print(f"Error in resend_otp: {e}")
-        
+
     return redirect(url_for('auth.verify'))
 
-
-
-#logout route
+# Logout route
 @auth.route('/logout')
 def logout():
     session.pop('user_email', None)
+    session.pop('user_role', None)
     flash("Logged out successfully.", "info")
-    return redirect(url_for('auth.login'))
+    return redirect(url_for('auth.auth_page'))
+
+# Placeholder dashboard routes
+@auth.route('/student_dashboard')
+def student_dashboard():
+    if 'user_email' not in session:
+        return redirect(url_for('auth.auth_page'))
+    return render_template('dashboards/student_dashboard.html')
+
+@auth.route('/mentor_dashboard')
+def mentor_dashboard():
+    if 'user_email' not in session:
+        return redirect(url_for('auth.auth_page'))
+    return render_template('dashboards/mentor_dashboard.html')
+
+@auth.route('/placement_dashboard')
+def placement_dashboard():
+    if 'user_email' not in session:
+        return redirect(url_for('auth.auth_page'))
+    return render_template('dashboards/placement_dashboard.html')
+
+@auth.route('/industry_dashboard')
+def industry_dashboard():
+    if 'user_email' not in session:
+        return redirect(url_for('auth.auth_page'))
+    return render_template('dashboards/industry_dashboard.html')

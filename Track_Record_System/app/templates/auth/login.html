@@ -1,7 +1,8 @@
 {%extends 'base.html'%}
-  {%block title%}Sign Up{%endblock%}
+  {%block title%}Authentication{%endblock%}
 
   {%block style%}
+  {{super()}}
   <link rel="stylesheet" href="{{url_for('static',filename='css/login.css')}}" />
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
@@ -9,50 +10,121 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   {%endblock%}
 
-
 {%block content%}
 
-  <div class="container">
-    <!-- Left side illustration -->
-    <div class="illustration">
-      <img src="{{ url_for('static',filename='images/login_image1.jpg')}}"/>
+    <div class="background"></div>
+    
+    <div class="container">
+        <!-- Illustration Section -->
+        <div class="illustration">
+            <img src="{{url_for('static',filename='images/login_image1.jpg')}}" alt="Welcome">
+        </div>
+        
+        <!-- Form Section -->
+        <div class="form-box">
+            <!-- Login Form -->
+            <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="form-container active" id="loginForm">
+                <h2>Welcome Back</h2>
+                
+                <div class="input-box">
+                    <i class="fas fa-user"></i>
+                    <input name="email" type="email" placeholder="Email" required>
+                </div>
+                
+                <div class="input-box">
+                    <i class="fas fa-lock"></i>
+                    <input name="password" type="password" placeholder="Password" required>
+                </div>
+                
+                <div class="remember">
+                    <label>
+                        <input type="checkbox" name="remember"> Remember me
+                    </label>
+                    <a href="#" style="color: #fff; text-decoration: none;">Forgot password?</a>
+                </div>
+                
+                <button type="submit" class="btn">Login</button>
+                
+                <div class="create">
+                    Don't have an account? <a href="#" onclick="toggleForm(event)">Sign Up</a>
+                </div>
+                
+                <div class="social-login">
+                    <p>Or login with</p>
+                    <div class="social-icons">
+                        <a href="#" class="fb"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="tw"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="gl"><i class="fab fa-google"></i></a>
+                    </div>
+                </div>
+            </div>
+            </form>
+
+            <!-- Signup Form -->
+            <form method="POST" action="{{ url_for('auth.signup') }}">
+            <div class="form-container" id="signupForm">
+                <h2>Create Account</h2>
+                
+                <div class="input-box">
+                    <i class="fas fa-user"></i>
+                    <input name="username" type="text" placeholder="Full Name" required>
+                </div>
+                
+                <div class="input-box">
+                    <i class="fas fa-envelope"></i>
+                    <input name="email" type="email" placeholder="Email" required>
+                </div>
+                
+                <div class="input-box">
+                    <i class="fas fa-graduation-cap"></i>
+                    <select name="role" required>
+                        <option value="" disabled selected hidden>Select Role</option>
+                        <option value="student">Student</option>
+                        <option value="mentor">Mentor/Teacher</option>
+                        <option value="placement">Placement Cell</option>
+                        <option value="industry">Industry</option>
+                    </select>
+                </div>
+                
+                <div class="input-box">
+                    <i class="fas fa-lock"></i>
+                    <input name="password" type="password" placeholder="Password" required>
+                </div>
+                
+                <div class="input-box">
+                    <i class="fas fa-lock"></i>
+                    <input name="confirm_password" type="password" placeholder="Confirm Password" required>
+                </div>
+                
+                <button type="submit" class="btn">Sign Up</button>
+                
+                <div class="create">
+                    Already have an account? <a href="#" onclick="toggleForm(event)">Login</a>
+                </div>
+                
+                <div class="social-login">
+                    <p>Or sign up with</p>
+                    <div class="social-icons">
+                        <a href="#" class="fb"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="tw"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="gl"><i class="fab fa-google"></i></a>
+                    </div>
+                </div>
+            </div>
+            </form>
+        </div>
     </div>
-
-    <!-- Right side form -->
-    <div class="form-box">
-      <h2>Sign up</h2>
-
-      <form method="POST" action="/login">
-        <div class="input-box">
-          <i class="fa fa-user"></i>
-          <input type="text" placeholder="Username" required />
-        </div>
-
-        <div class="input-box">
-          <i class="fa fa-lock"></i>
-          <input type="password" placeholder="Password" required />
-        </div>
-
-        <div class="remember">
-          <label><input type="checkbox" /> Remember me</label>
-        </div>
-
-        <button type="submit" class="btn">Log in</button>
-
-        <p class="create">
-          <a href="#">Create an account</a>
-        </p>
-
-        <div class="social-login">
-          <p>Or login with</p>
-          <div class="social-icons">
-            <a href="#" class="fb"><i class="fab fa-facebook-f"></i></a>
-            <a href="#" class="tw"><i class="fab fa-twitter"></i></a>
-            <a href="#" class="gl"><i class="fab fa-google"></i></a>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
+    
+    <script>
+        function toggleForm(event) {
+            event.preventDefault();
+            const loginForm = document.getElementById('loginForm');
+            const signupForm = document.getElementById('signupForm');
+            
+            loginForm.classList.toggle('active');
+            signupForm.classList.toggle('active');
+        }
+    </script>
 
 {%endblock%}

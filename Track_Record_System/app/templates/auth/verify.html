@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}Verify OTP{% endblock %}
+
+{% block style %}
+
+{{ super() }}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/verify.css') }}">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+<!-- Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+{% endblock %}
+
+{% block content %}
+
+<div class="background"></div>
+
+<div class="container">
+    <div class="verify-content">
+        <div class="verify-header">
+            <div class="verify-icon">
+                <i class="fas fa-envelope"></i>
+            </div>
+            <h2 class="verify-title">Verify OTP</h2>
+            <p class="verify-subtitle">Enter the 6-digit code sent to your email</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.verify') }}">
+            <div>
+                <input 
+                    type="text" 
+                    name="otp" 
+                    maxlength="6" 
+                    inputmode="numeric"
+                    placeholder="000000" 
+                    class="single-otp-input" 
+                    required
+                    pattern="[0-9]{6}"
+                    title="Please enter 6 digits"
+                >
+            </div>
+
+            <div class="timer-section" id="timerSection">
+                Resend available in: <span id="countdown">{{ remaining|default(60) }}</span>s
+            </div>
+
+            <button id="verify-btn" type="submit" class="verify-btn">
+                <i class="fas fa-check"></i>Verify OTP
+            </button>
+        </form>
+
+        <form method="POST" action="{{ url_for('auth.resend_otp') }}" style="margin-bottom: 0;">
+            <button id="resend-btn" type="submit" class="resend-btn" disabled>
+                <i class="fas fa-redo"></i>Resend OTP
+            </button>
+        </form>
+
+        <div class="back-login">
+            <a href="{{ url_for('auth.auth_page') }}">
+                <i class="fas fa-arrow-left"></i>Back to Login
+            </a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const countdownSpan = document.getElementById('countdown');
+    const resendBtn = document.getElementById('resend-btn');
+    const timerSection = document.getElementById('timerSection');
+    const otpInput = document.querySelector('.single-otp-input');
+
+    let timeLeft = parseInt(countdownSpan.textContent) || 0;
+
+    function updateCountdown() {
+        if (timeLeft <= 0) {
+            countdownSpan.textContent = 'Expired';
+            resendBtn.disabled = false;
+            timerSection.classList.add('expired');
+        } else {
+            timerSection.classList.remove('expired');
+            countdownSpan.textContent = timeLeft;
+            setTimeout(() => {
+                timeLeft--;
+                updateCountdown();
+            }, 1000);
+        }
+    }
+
+    if (timeLeft > 0) {
+        resendBtn.disabled = true;
+        updateCountdown();
+    } else {
+        resendBtn.disabled = false;
+        timerSection.classList.add('expired');
+        countdownSpan.textContent = 'Expired';
+    }
+
+    // Auto-format OTP input - only numbers
+    otpInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        e.target.value = value.slice(0, 6);
+    });
+
+    // Allow submit only when 6 digits are entered
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (otpInput.value.length !== 6) {
+            e.preventDefault();
+            otpInput.style.borderColor = '#ff6b6b';
+            otpInput.style.boxShadow = '0 0 0 3px rgba(255, 107, 107, 0.2)';
+            setTimeout(() => {
+                otpInput.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                otpInput.style.boxShadow = 'none';
+            }, 1500);
+        }
+    });
+</script>
+{% endblock %}
