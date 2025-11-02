@@ -1,6 +1,8 @@
 from flask import Flask
+from flask_socketio import SocketIO
 from flask_mail import Mail
 
+socketio = SocketIO()
 mail = Mail()
 
 def create_app():
@@ -22,9 +24,17 @@ def create_app():
     app.config['MAIL_DEFAULT_SENDER'] = 'pkthisisfor1234@gmail.com'
     mail.init_app(app)
 
+
+    socketio.init_app(app, cors_allowed_origins="*")
+
 # Import routes
+#Import Blueprint directly from auth.py
     from app.routes.auth import auth
     app.register_blueprint(auth)
+    
+# Import socketio events
+    from app import socketio_events
+
 
     return app
 

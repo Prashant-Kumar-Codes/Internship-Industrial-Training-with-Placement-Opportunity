@@ -120,6 +120,7 @@ def signup():
         flash(f"Signup error: {str(e)}", "danger")
         return redirect(url_for('auth.auth_page'))
 
+
 # Login route (API endpoint)
 @auth.route('/login', methods=['POST'])
 def login():
@@ -144,6 +145,8 @@ def login():
             if user['is_verified'] == 1:
                 session['user_email'] = user['email']
                 session['user_role'] = user['role']
+                session['user'] = user['username']
+                
                 flash("Login successful!", "success")
 
                 # Redirect based on role
@@ -297,7 +300,8 @@ def logout():
 def student_dashboard():
     if 'user_email' not in session:
         return redirect(url_for('auth.auth_page'))
-    return render_template('dashboards/student_dashboard.html')
+    print('Current session user is : ', session['user_email'], session['user_role'])
+    return render_template('auth/student_dashboard.html')
 
 @auth.route('/mentor_dashboard')
 def mentor_dashboard():

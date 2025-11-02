@@ -1,23 +1,25 @@
 from flask_socketio import emit, join_room, leave_room
 from flask import session, flash
 from . import socketio
-import mysql.connector as mycon
+import mysql.connector
 from datetime import datetime
 
 # Database connection
-mycon_obj = mycon.connect(host='localhost', user='root', password='admin123', database='message_system')
+# mycon_obj = mycon.connect(host='localhost', user='root', password='admin123', database='message_system')
+
+mycon_obj = mysql.connector.connect( host="sql12.freesqldatabase.com", user="sql12805427", password="xtFCQmMibE", database="sql12805427")
 cursor_socket = mycon_obj.cursor(dictionary=True)
 
 @socketio.on('connect')
 def handle_connect():
-    username = session.get('from_user')
+    username = session.get('user')
     if username:
         join_room(username)
         print(f'✓ {username} connected and joined room: {username}')
 
 @socketio.on('send_message')
 def handle_send_message(data):
-    from_user = session.get('from_user')
+    from_user = session.get('user')
     to_user = data['recipient_id']  # This is the recipient username
     message = data['message']
     now = datetime.now()
